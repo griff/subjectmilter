@@ -58,9 +58,10 @@ func (e *MyFilter) Header(name, value string, m *milter.Modifier) (milter.Respon
 		} else {
 
 			fmt.Printf("Subject to analyze: \"%s\"\n", decoded)
+			decodedLower := strings.ToLower(decoded)
 
 			for _, subjectString := range subjectstrings {
-				if strings.Contains(decoded, subjectString) {
+				if strings.Contains(decodedLower, subjectString) {
 
 					fmt.Printf("Subject string \"%s\" detected.!\n", subjectString)
 					e.addHeader = true

@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	subjectstrings      []string
-	filename string
+	subjectstrings []string
+	filename       string
 )
 
 type MyFilter struct {
@@ -112,7 +112,7 @@ func main() {
 		defer socket.Close()
 
 		init := func() (milter.Milter, milter.OptAction, milter.OptProtocol) {
-			return &MyFilter{ false },
+			return &MyFilter{false},
 				milter.OptAddHeader,
 				milter.OptNoConnect | milter.OptNoBody
 		}

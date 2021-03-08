@@ -14,14 +14,13 @@ import (
 	"github.com/mschneider82/milter"
 )
 
-const SUBJECTS_TXT_FILE string = "/etc/subjects.txt"
-
 var (
-	badstrings      []string
-	fuckOffResponse milter.Response
+	subjectstrings      []string
+	filename string
 )
 
 type MyFilter struct {
+	addHeader bool
 }
 
 func (e *MyFilter) Init(sid, mid string) {
@@ -59,12 +58,12 @@ func (e *MyFilter) Header(name, value string, m *milter.Modifier) (milter.Respon
 
 			fmt.Printf("Subject to analyze: \"%s\"\n", decoded)
 
-			for _, badString := range badstrings {
-				if strings.Contains(decoded, badString) {
+			for _, subjectString := range subjectstrings {
+				if strings.Contains(decoded, subjectString) {
 
-					fmt.Printf("Bad string \"%s\" detected. Fuck off sent!\n", badString)
-
-					return fuckOffResponse, nil
+					fmt.Printf("Subject string \"%s\" detected.!\n", subjectString)
+					e.addHeader = true
+					return milter.RespContinue, nil
 				}
 			}
 
@@ -76,6 +75,10 @@ func (e *MyFilter) Header(name, value string, m *milter.Modifier) (milter.Respon
 }
 
 func (e *MyFilter) Headers(headers textproto.MIMEHeader, m *milter.Modifier) (milter.Response, error) {
+	if e.addHeader {
+		fmt.Println("Adding X-AllowNoTLS header!")
+		m.AddHeader("X-AllowNoTLS", "yes")
+	}
 	return milter.RespContinue, nil
 }
 
@@ -88,8 +91,12 @@ func (e *MyFilter) Body(m *milter.Modifier) (milter.Response, error) {
 }
 
 func main() {
-	badstrings = LoadBadStrings()
-	fuckOffResponse = milter.NewResponseStr('y', "550 Fuck off")
+	if len(os.Args[1:]) != 1 {
+		fmt.Printf("Missing file argument")
+		os.Exit(1)
+	}
+	filename = os.Args[1]
+	subjectstrings = LoadSubjectStrings()
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGHUP)
@@ -104,8 +111,8 @@ func main() {
 		defer socket.Close()
 
 		init := func() (milter.Milter, milter.OptAction, milter.OptProtocol) {
-			return &MyFilter{},
-				milter.OptNone,
+			return &MyFilter{ false },
+				milter.OptAddHeader,
 				milter.OptNoBody
 		}
 
@@ -127,14 +134,14 @@ func main() {
 	}
 }
 
-func LoadBadStrings() []string {
-	fmt.Println("Loading badstrings")
+func LoadSubjectStrings() []string {
+	fmt.Printf("Loading subject strings: %s\n", filename)
 
 	strings := make([]string, 0)
 
-	file, err := os.Open(SUBJECTS_TXT_FILE)
+	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Printf("Error reading %s: %s\n", SUBJECTS_TXT_FILE, err.Error())
+		fmt.Printf("Error reading %s: %s\n", filename, err.Error())
 		return strings
 	}
 	defer file.Close()
@@ -145,7 +152,7 @@ func LoadBadStrings() []string {
 		strings = append(strings, scanner.Text())
 	}
 
-	fmt.Printf("Read %d subjects from %s\n", len(strings), SUBJECTS_TXT_FILE)
+	fmt.Printf("Read %d subjects from %s\n", len(strings), filename)
 
 	return strings
 }
@@ -156,6 +163,6 @@ func HandleSignals(signals chan os.Signal) {
 	for {
 		<-signals
 
-		badstrings = LoadBadStrings()
+		subjectstrings = LoadSubjectStrings()
 	}
 }

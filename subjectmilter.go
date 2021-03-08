@@ -8,6 +8,7 @@ import (
 	"net/textproto"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 
@@ -75,10 +76,6 @@ func (e *MyFilter) Header(name, value string, m *milter.Modifier) (milter.Respon
 }
 
 func (e *MyFilter) Headers(headers textproto.MIMEHeader, m *milter.Modifier) (milter.Response, error) {
-	if e.addHeader {
-		fmt.Println("Adding X-AllowNoTLS header!")
-		m.AddHeader("X-AllowNoTLS", "yes")
-	}
 	return milter.RespContinue, nil
 }
 
@@ -87,6 +84,10 @@ func (e *MyFilter) BodyChunk(chunk []byte, m *milter.Modifier) (milter.Response,
 }
 
 func (e *MyFilter) Body(m *milter.Modifier) (milter.Response, error) {
+	if e.addHeader {
+		fmt.Println("Adding X-AllowNoTLS header!")
+		m.AddHeader("X-AllowNoTLS", "yes")
+	}
 	return milter.RespAccept, nil
 }
 
@@ -113,11 +114,12 @@ func main() {
 		init := func() (milter.Milter, milter.OptAction, milter.OptProtocol) {
 			return &MyFilter{ false },
 				milter.OptAddHeader,
-				milter.OptNoBody
+				milter.OptNoConnect | milter.OptNoBody
 		}
 
 		errhandler := func(e error) {
 			fmt.Printf("Panic happend: %s\n", e.Error())
+			debug.PrintStack()
 		}
 
 		server := milter.Server{
